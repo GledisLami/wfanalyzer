@@ -49,14 +49,14 @@ public class OrderService {
         StringBuilder csvFile = prepareCsvBody();
 
         for (Frame frame : frames) {
-            logger.info("Getting data for frame: {}", frame);
+            logger.info("Getting data for frame: {}", frame.getName());
             boolean notEnoughParts = false;
             double platDifference;
             // Retrieve the orders for each part
             for (String element : parts) {
                 //Remove orders that have status != ingame
                 logger.info("Getting data for part: {}", element);
-                List<Order> topOrders = filterAndSortOrderList(getOrder(frame + element).getPayload().getOrders());
+                List<Order> topOrders = filterAndSortOrderList(getOrder(frame.getName() + element).getPayload().getOrders());
 
                 if (topOrders.size() < 5) {
                     logger.info("Not enough orders for part: {}", element);
@@ -72,7 +72,7 @@ public class OrderService {
             }
 
             if (notEnoughParts) {
-                logger.info("Not enough parts for frame: {}", frame);
+                logger.info("Not enough parts for frame: {}", frame.getName());
                 // Continue to the next frame
                 continue;
             }
@@ -80,30 +80,30 @@ public class OrderService {
             logger.info("Total parts price: {}", frame.getPartsPrice());
 
             // After getting each part, get the set
-            List<Order> setOrders = filterAndSortOrderList(getOrder(frame + "set").getPayload().getOrders());
+            List<Order> setOrders = filterAndSortOrderList(getOrder(frame.getName() + "set").getPayload().getOrders());
 
             if (setOrders.size() < 5) {
-                logger.info("Not enough orders for set: {}", frame);
+                logger.info("Not enough orders for set: {}", frame.getName());
                 continue;
             }
 
             frame.setSetPrice((double) setOrders.stream().mapToInt(Order::getPlatinum).sum() / setOrders.size());
-            logger.info("Set: {}, price: {}", frame, frame.getSetPrice());
+            logger.info("Set: {}, price: {}", frame.getName(), frame.getSetPrice());
             double profitMarginD = (frame.getSetPrice() - frame.getPartsPrice()) / frame.getPartsPrice();
             String profitMargin = String.format("%+,.2f%%", profitMarginD * 100);
             logger.info("Profit margin: {}", profitMargin);
             platDifference = (int) frame.getSetPrice() - frame.getPartsPrice();
-            String csvText = frame + "," + frame.getSetPrice() + "," + frame.getPartsPrice() + "," + profitMargin + "," + platDifference +"\n";
+            String csvText = frame.getName() + "," + frame.getSetPrice() + "," + frame.getPartsPrice() + "," + profitMargin + "," + platDifference +"\n";
             csvFile.append(csvText);
             willSendCsvReportMail = true;
 
             //todo: move 0.3 as env variable
             if (profitMarginD > requiredProfitMarginMailAlert) {
-                logger.info("High profit margin detected for frame: {}", frame);
+                logger.info("High profit margin detected for frame: {}", frame.getName());
                 willSendHighProfitMail = true;
-                highProfitMailBody.append(" <tr> <td>" + frame + "</td> <td>" + frame.getSetPrice() + "</td> <td>" + frame.getPartsPrice() + "</td> <td>" + profitMargin + "</td> <td>" + LocalDateTime.now() + "</td> <td>" + platDifference  + " </tr>");
+                highProfitMailBody.append(" <tr> <td>" + frame.getName() + "</td> <td>" + frame.getSetPrice() + "</td> <td>" + frame.getPartsPrice() + "</td> <td>" + profitMargin + "</td> <td>" + LocalDateTime.now() + "</td> <td>" + platDifference  + " </tr>");
             }
-            logger.info("Done with frame: {}\n", frame);
+            logger.info("Done with frame: {}\n", frame.getName());
         }
 
         sendMails(willSendHighProfitMail, highProfitMailBody, willSendCsvReportMail, csvFile);

@@ -39,7 +39,6 @@ public class HttpClientService {
 
             HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
 
-            logger.info("Response status code: {}", response.statusCode());
             logger.info("Response: {}", response);
 
             return response;

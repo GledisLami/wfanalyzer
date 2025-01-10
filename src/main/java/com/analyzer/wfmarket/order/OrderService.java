@@ -97,11 +97,10 @@ public class OrderService {
             csvFile.append(csvText);
             willSendCsvReportMail = true;
 
-            //todo: move 0.3 as env variable
-            if (profitMarginD > requiredProfitMarginMailAlert) {
+            if (profitMarginD > requiredProfitMarginMailAlert || profitMarginD < requiredProfitMarginMailAlert * -1) {
                 logger.info("High profit margin detected for frame: {}", frame.getName());
                 willSendHighProfitMail = true;
-                highProfitMailBody.append(" <tr> <td>" + frame.getName() + "</td> <td>" + frame.getSetPrice() + "</td> <td>" + frame.getPartsPrice() + "</td> <td>" + profitMargin + "</td> <td>" + LocalDateTime.now() + "</td> <td>" + platDifference  + " </tr>");
+                highProfitMailBody.append(" <tr> <td>").append(frame.getName()).append("</td> <td>").append(frame.getSetPrice()).append("</td> <td>").append(frame.getPartsPrice()).append("</td> <td>").append(profitMargin).append("</td> <td>").append(LocalDateTime.now()).append("</td> <td>").append(platDifference).append(" </tr>");
             }
             logger.info("Done with frame: {}\n", frame.getName());
         }
@@ -132,16 +131,12 @@ public class OrderService {
     }
 
     private void sendMails(boolean willSendHighProfitMail, StringBuilder highProfitMailBody, boolean willSendCsvReportMail, StringBuilder csvFile) throws InterruptedException {
-        if (willSendHighProfitMail) {
-            logger.info("Sending mail");
-            highProfitMailBody.append("</table> ");
-            mailSender.sendMail(
-                    "warframeanalyzer@gmail.com",
-                    "High Profit Opportunity",
-                    Jsoup.parse(highProfitMailBody.toString()).outerHtml(),
-                    mailCc,
-                    null
-            );
+        // If there are frames found in the analysis, willSendCsvReportMail will be true.
+        // If there are frames with high profit margin, willSendHighProfitMail will be true.
+        // willSendHighProfitMail cannot be true without willSendCsvReportMail being true.
+        String mailBody = "";
+        if (willSendHighProfitMail){
+            mailBody = "<h2>High profit Opportunity:</h2><br>" + Jsoup.parse(highProfitMailBody.toString()).outerHtml();
         }
 
         if (willSendCsvReportMail) {
@@ -149,7 +144,7 @@ public class OrderService {
             mailSender.sendMail(
                     "warframeanalyzer@gmail.com",
                     "Warframe Market Analysis",
-                    "",
+                    mailBody,
                     mailCc,
                     csvFile.toString().getBytes()
             );

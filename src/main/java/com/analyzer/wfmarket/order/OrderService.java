@@ -1,5 +1,6 @@
 package com.analyzer.wfmarket.order;
 
+import com.analyzer.wfmarket.frame.Frame;
 import com.analyzer.wfmarket.util.CustomMailSender;
 import com.analyzer.wfmarket.util.FileReaderService;
 import com.analyzer.wfmarket.util.HttpClientService;
@@ -23,7 +24,8 @@ public class OrderService {
     private final String url;
     private final HttpClientService httpClientService;
     private final CustomMailSender mailSender;
-    private List<String> parts;
+    private final List<String> parts;
+    private final List<Frame> frames;
     private final double requiredProfitMarginMailAlert;
     private final String mailCc;
 
@@ -31,6 +33,7 @@ public class OrderService {
                         CustomMailSender mailSender,
                         @Value("${required.profit.margin.mail.alert}") String requiredProfitMarginMailAlert,
                         @Value("${mail.cc}") String mailCc) {
+        this.frames = getFrames();
         this.requiredProfitMarginMailAlert = Double.parseDouble(requiredProfitMarginMailAlert);
         this.mailCc = mailCc;
         this.url = "http://api.warframe.market/v1";
@@ -41,30 +44,14 @@ public class OrderService {
 
     public void collectData() throws InterruptedException {
         boolean willSendHighProfitMail = false;
-        StringBuilder highProfitMailBody = new StringBuilder().append("""
-                <table border="1" style="border-collapse: collapse; width: 100%;">
-                    <tr>
-                        <th>Warframe name</th>
-                        <th>Set price</th>
-                        <th>Total parts price</th>
-                        <th>Profit margin</th>
-                        <th>Time of detection</th>
-                        <th>Plat difference</th>
-                    </tr>
-                    """
-        );
-
         boolean willSendCsvReportMail = false;
-        StringBuilder csvFile = new StringBuilder();
-        csvFile.append("Warframe name,Set Price, Total Parts Price,Profit Margin,Plat difference\n");
-        //1. get all frames to order
-        List<String> frames = getFrames();
-        //2. get orders for each frame
-        for (String frame : frames) {
+        StringBuilder highProfitMailBody = prepareMailBody();
+        StringBuilder csvFile = prepareCsvBody();
+
+        for (Frame frame : frames) {
             logger.info("Getting data for frame: {}", frame);
-            double partsPrice = 0;
             boolean notEnoughParts = false;
-            double platDifference = 0;
+            double platDifference;
             // Retrieve the orders for each part
             for (String element : parts) {
                 //Remove orders that have status != ingame
@@ -80,7 +67,7 @@ public class OrderService {
                 int averagePrice = topOrders.stream().mapToInt(Order::getPlatinum).sum() / topOrders.size();
                 logger.info("Average price for part: {} is: {}", element, averagePrice);
                 // todo: check if first price is anomaly
-                partsPrice += averagePrice;
+                frame.setPartsPrice(frame.getPartsPrice()+averagePrice);
                 Thread.sleep(250);
             }
 
@@ -90,7 +77,7 @@ public class OrderService {
                 continue;
             }
 
-            logger.info("Total parts price: {}", partsPrice);
+            logger.info("Total parts price: {}", frame.getPartsPrice());
 
             // After getting each part, get the set
             List<Order> setOrders = filterAndSortOrderList(getOrder(frame + "set").getPayload().getOrders());
@@ -100,28 +87,51 @@ public class OrderService {
                 continue;
             }
 
-
-            double setPrice = (double) setOrders.stream().mapToInt(Order::getPlatinum).sum() / setOrders.size();
-            logger.info("Set: {}, price: {}", frame, setPrice);
-            double profitMarginD = (setPrice - partsPrice) / partsPrice;
+            frame.setSetPrice((double) setOrders.stream().mapToInt(Order::getPlatinum).sum() / setOrders.size());
+            logger.info("Set: {}, price: {}", frame, frame.getSetPrice());
+            double profitMarginD = (frame.getSetPrice() - frame.getPartsPrice()) / frame.getPartsPrice();
             String profitMargin = String.format("%+,.2f%%", profitMarginD * 100);
             logger.info("Profit margin: {}", profitMargin);
-            platDifference = (int) setPrice - partsPrice;
-            String csvText = frame + "," + setPrice + "," + partsPrice + "," + profitMargin + "," + platDifference +"\n";
+            platDifference = (int) frame.getSetPrice() - frame.getPartsPrice();
+            String csvText = frame + "," + frame.getSetPrice() + "," + frame.getPartsPrice() + "," + profitMargin + "," + platDifference +"\n";
             csvFile.append(csvText);
             willSendCsvReportMail = true;
 
             //todo: move 0.3 as env variable
             if (profitMarginD > requiredProfitMarginMailAlert) {
                 logger.info("High profit margin detected for frame: {}", frame);
-                String mailText = " <tr> <td>" + frame + "</td> <td>" + setPrice + "</td> <td>" + partsPrice + "</td> <td>" + profitMargin + "</td> <td>" + LocalDateTime.now() + "</td> <td>" + platDifference  + " </tr>";
-
                 willSendHighProfitMail = true;
-                highProfitMailBody.append(mailText);
+                highProfitMailBody.append(" <tr> <td>" + frame + "</td> <td>" + frame.getSetPrice() + "</td> <td>" + frame.getPartsPrice() + "</td> <td>" + profitMargin + "</td> <td>" + LocalDateTime.now() + "</td> <td>" + platDifference  + " </tr>");
             }
             logger.info("Done with frame: {}\n", frame);
         }
 
+        sendMails(willSendHighProfitMail, highProfitMailBody, willSendCsvReportMail, csvFile);
+        Thread.sleep(1000);
+    }
+
+    private static StringBuilder prepareCsvBody() {
+        StringBuilder csvFile = new StringBuilder().append("Warframe name,Set Price, Total Parts Price,Profit Margin,Plat difference\n");
+        return csvFile;
+    }
+
+    private static StringBuilder prepareMailBody() {
+        StringBuilder highProfitMailBody = new StringBuilder().append("""
+                <table border="1" style="border-collapse: collapse; width: 100%;">
+                    <tr>
+                        <th>Warframe name</th>
+                        <th>Set price</th>
+                        <th>Total parts price</th>
+                        <th>Profit margin</th>
+                        <th>Time of detection</th>
+                        <th>Plat difference</th>
+                    </tr>
+                    """
+        );
+        return highProfitMailBody;
+    }
+
+    private void sendMails(boolean willSendHighProfitMail, StringBuilder highProfitMailBody, boolean willSendCsvReportMail, StringBuilder csvFile) throws InterruptedException {
         if (willSendHighProfitMail) {
             logger.info("Sending mail");
             highProfitMailBody.append("</table> ");
@@ -147,8 +157,8 @@ public class OrderService {
         Thread.sleep(1000);
     }
 
-    public List<String> getFrames() {
-        return FileReaderService.readFile("frames.txt").stream().map(frame -> frame.toLowerCase() + "_prime_").toList();
+    public List<Frame> getFrames() {
+        return FileReaderService.readFile("frames.txt").stream().map(frame -> frame.toLowerCase() + "_prime_").map(Frame::new).toList();
     }
 
     public OrderResponse getOrder(String partName) {

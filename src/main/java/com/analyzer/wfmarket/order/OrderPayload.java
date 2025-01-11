@@ -1,9 +1,5 @@
 package com.analyzer.wfmarket.order;
 
-import lombok.Getter;
-import lombok.RequiredArgsConstructor;
-import lombok.Setter;
-
 import java.util.List;
 
 public class OrderPayload {

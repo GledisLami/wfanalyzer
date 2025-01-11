@@ -10,10 +10,7 @@ import org.springframework.http.HttpMethod;
 import org.springframework.stereotype.Service;
 
 import java.net.http.HttpResponse;
-import java.util.Comparator;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 import java.util.stream.Collectors;
 
 @Service
@@ -23,13 +20,13 @@ public class OrderService {
     private final HttpClientService httpClientService;
     private final CustomMailSender mailSender;
     private final List<String> parts;
-    private final List<Frame> frames;
+    private List<Frame> frames;
     private final String mailCc;
 
     public OrderService(HttpClientService httpClientService,
                         CustomMailSender mailSender,
                         @Value("${mail.cc}") String mailCc) {
-        this.frames = getFrames();
+        this.frames = new ArrayList<>();
         this.mailCc = mailCc;
         this.url = "http://api.warframe.market/v1";
         this.httpClientService = httpClientService;
@@ -38,13 +35,13 @@ public class OrderService {
     }
 
     public void collectData() throws InterruptedException {
+        this.frames = getFrames();
         boolean willSendCsvReportMail = false;
         StringBuilder csvFile = prepareCsvBody();
-
+        List<Frame> validFrames = new ArrayList<>();
         for (Frame frame : frames) {
             logger.info("Getting data for frame: {}", frame.getName());
             boolean notEnoughParts = false;
-            double platDifference;
             // Retrieve the orders for each part
             for (String element : parts) {
                 //Remove orders that have status != ingame
@@ -88,15 +85,17 @@ public class OrderService {
             logger.info("Set: {}, price: {}", frame.getName(), frame.getSetPrice());
             double profitMarginD = (frame.getSetPrice() - frame.getPartsPrice()) / frame.getPartsPrice();
             String profitMargin = String.format("%+,.2f%%", profitMarginD * 100);
+            frame.setProfitMargin(profitMargin);
             logger.info("Profit margin: {}", profitMargin);
-            platDifference = (int) frame.getSetPrice() - frame.getPartsPrice();
-            String csvText = frame.getName() + "," + frame.getSetPrice() + "," + frame.getPartsPrice() + "," + profitMargin + "," + platDifference + "," + frame.getAnomalies() +"\n";
-            csvFile.append(csvText);
+            frame.setPlatDifference(frame.getSetPrice() - frame.getPartsPrice());
+            validFrames.add(frame);
             willSendCsvReportMail = true;
 
             logger.info("Done with frame: {}\n", frame.getName());
         }
 
+        sortFrames(validFrames);
+        buildCsvFile(csvFile, validFrames);
         sendMails(willSendCsvReportMail, csvFile);
         Thread.sleep(1000);
     }
@@ -106,17 +105,12 @@ public class OrderService {
     }
 
     private void sendMails(boolean willSendCsvReportMail, StringBuilder csvFile) throws InterruptedException {
-        // If there are frames found in the analysis, willSendCsvReportMail will be true.
-        // If there are frames with high profit margin, willSendHighProfitMail will be true.
-        // willSendHighProfitMail cannot be true without willSendCsvReportMail being true.
-        String mailBody = "";
-
         if (willSendCsvReportMail) {
             logger.info("Sending mail with csv attachment");
             mailSender.sendMail(
                     "warframeanalyzer@gmail.com",
                     "Warframe Market Analysis",
-                    mailBody,
+                    "",
                     mailCc,
                     csvFile.toString().getBytes()
             );
@@ -155,5 +149,15 @@ public class OrderService {
             return filteredOrders;
         }
         return filteredOrders.subList(0, 5);
+    }
+
+    public void sortFrames(List<Frame> frames){
+        frames.sort(Comparator.comparingDouble(Frame::getPlatDifference).reversed());
+    }
+
+    public void buildCsvFile(StringBuilder csvFile, List<Frame> frames){
+        for (Frame frame : frames){
+            csvFile.append(frame);
+        }
     }
 }

@@ -17,7 +17,7 @@ public class OrderController {
     @GetMapping
     public String poll() {
         try {
-            orderService.collectData();
+            orderService.collectDataForAllFrames();
             return "Success!";
         } catch (Exception e){
             return "Error!";

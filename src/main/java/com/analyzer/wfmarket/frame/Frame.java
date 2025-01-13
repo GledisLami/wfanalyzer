@@ -1,5 +1,12 @@
 package com.analyzer.wfmarket.frame;
 
+import lombok.*;
+
+@Builder
+@NoArgsConstructor
+@AllArgsConstructor
+@Getter
+@Setter
 public class Frame {
     private String name;
     private double partsPrice;
@@ -15,57 +22,6 @@ public class Frame {
         this.setPrice = 0;
         this.platDifference = 0;
         this.profitMargin = "";
-    }
-
-    public String getName() {
-        return name;
-    }
-
-    public void setName(String name) {
-        this.name = name;
-    }
-
-    public double getPartsPrice() {
-        return partsPrice;
-    }
-
-    public void setPartsPrice(double partsPrice) {
-        this.partsPrice = partsPrice;
-    }
-
-    public double getSetPrice() {
-        return setPrice;
-    }
-
-    public void setSetPrice(double setPrice) {
-        this.setPrice = setPrice;
-    }
-
-    public String getAnomalies() {
-        return anomalies;
-    }
-
-    public void setAnomalies(String anomalies) {
-        this.anomalies = anomalies;
-    }
-
-    public Frame() {
-    }
-
-    public double getPlatDifference() {
-        return platDifference;
-    }
-
-    public void setPlatDifference(double platDifference) {
-        this.platDifference = platDifference;
-    }
-
-    public String getProfitMargin() {
-        return profitMargin;
-    }
-
-    public void setProfitMargin(String profitMargin) {
-        this.profitMargin = profitMargin;
     }
 
     @Override

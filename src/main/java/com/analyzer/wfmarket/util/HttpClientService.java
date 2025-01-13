@@ -27,7 +27,6 @@ public class HttpClientService {
 
     public HttpResponse<String> sendHttpRequest(String url, HttpMethod method, String body, Map<String, String> headers) {
         String[] headersArray = convertHeadersMapToArray(headers);
-        logger.info("Sending request to: {} with method: {}", url, method);
 
         try {
             HttpRequest request = HttpRequest.newBuilder()
@@ -39,7 +38,9 @@ public class HttpClientService {
 
             HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
 
-            logger.info("Response: {}", response);
+            if (response.statusCode() != 200) {
+                logger.info("Response: {}", response);
+            }
 
             return response;
         } catch (Exception e) {

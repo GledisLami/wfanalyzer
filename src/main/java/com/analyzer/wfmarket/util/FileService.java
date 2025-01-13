@@ -1,11 +1,12 @@
 package com.analyzer.wfmarket.util;
 
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Paths;
 import java.util.List;
 
-public class FileReaderService {
+public class FileService {
 
     public static List<String> readFile(String path) {
         try {
@@ -18,14 +19,13 @@ public class FileReaderService {
         }
     }
 
-    public static void main(String[] args) {
-        // Test the readFile method
-        List<String> lines = FileReaderService.readFile("frames.txt");
-        List<String> frames = lines.stream().map(frame -> frame.toLowerCase()+"_prime_").toList();
-        if (frames != null) {
-            for (String frame : frames) {
-                System.out.println(frame);
-            }
+    public static void writeFile(String path, String content) {
+        try {
+            // Write all lines to the file at the given path
+            Files.write(Paths.get(path), content.getBytes(StandardCharsets.UTF_8));
+        } catch (IOException e) {
+            // Handle exceptions, e.g., file not found, access denied
+            e.printStackTrace();
         }
     }
 }
